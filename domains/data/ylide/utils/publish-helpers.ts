@@ -1,75 +1,41 @@
-import { constructFaucetMsg, type EthereumWalletController } from '@ylide/ethereum'
-import type { IGenericAccount } from '@ylide/sdk'
-import SmartBuffer from '@ylide/smart-buffer'
+import type { EVMNetwork } from '@ylide/ethereum'
+import { EVM_NAMES } from '@ylide/ethereum'
 import type { Wallet } from '../Wallet'
+import type { PublicKey, WalletAccount, Ylide, YlideKeysRegistry } from '@ylide/sdk'
 
-export const requestFaucetSignature = async (
-  wallet: Wallet,
-  publicKey: Uint8Array,
-  account: IGenericAccount,
-  chainId: number,
-  registrar: number,
-  timestampLock: number
-) => {
-  const msg = constructFaucetMsg(publicKey, registrar, chainId, timestampLock)
-
+export async function publishThroughFaucet({
+  ylide,
+  keysRegistry,
+  wallet,
+  account,
+  publicKey,
+  faucetType,
+}: {
+  ylide: Ylide
+  keysRegistry: YlideKeysRegistry
+  wallet: Wallet
+  account: WalletAccount
+  publicKey: PublicKey
+  faucetType: EVMNetwork.GNOSIS | EVMNetwork.FANTOM | EVMNetwork.POLYGON
+}) {
   try {
-    return await (wallet.controller as EthereumWalletController).signString(account, msg)
-  } catch (err) {
-    console.error('requestFaucetSignature error: ', err)
-    throw err
-  }
-}
+    const faucet = await wallet.controller.getFaucet({ faucetType })
 
-export const chainIdByFaucetType = (faucetType: 'polygon' | 'gnosis' | 'fantom') => {
-  if (faucetType === 'polygon') {
-    return 137
-  } else if (faucetType === 'gnosis') {
-    return 100
-  } else if (faucetType === 'fantom') {
-    return 250
-  } else {
-    throw new Error('Invalid faucet type')
-  }
-}
+    const registrar = 4 // NFT3 const
+    const data = await faucet.authorizePublishing(account, publicKey, registrar)
 
-export const publishKeyThroughFaucet = async (
-  faucetType: 'polygon' | 'gnosis' | 'fantom',
-  publicKey: Uint8Array,
-  account: IGenericAccount,
-  signature: Awaited<ReturnType<typeof requestFaucetSignature>>,
-  registrar: number,
-  timestampLock: number,
-  keyVersion: number
-): Promise<
-  | { result: true; hash: string }
-  | { result: false; errorCode: 'ALREADY_EXISTS' }
-  | { result: false; errorCode: 'GENERIC_ERROR'; rawError: any }
-> => {
-  const faucetUrl = `https://faucet.ylide.io/${faucetType}`
-  const response = await fetch(faucetUrl, {
-    method: 'POST',
-    body: JSON.stringify({
-      address: account.address.toLowerCase(),
-      referrer: '0x0000000000000000000000000000000000000000',
-      payBonus: '0',
-      registrar,
-      timestampLock,
-      publicKey: '0x' + new SmartBuffer(publicKey).toHexString(),
-      keyVersion,
-      _r: signature.r,
-      _s: signature.s,
-      _v: signature.v,
-    }),
-  })
-  const result = await response.json()
-  if (result && result.data && result.data.txHash) {
-    return { result: true, hash: result.data.txHash }
-  } else {
-    if (result.error === 'Already exists') {
-      return { result: false, errorCode: 'ALREADY_EXISTS' }
+    const result = await faucet.attachPublicKey(data)
+
+    const key = await ylide.core.waitForPublicKey(EVM_NAMES[faucetType], account.address, publicKey.keyBytes)
+
+    if (key) {
+      await keysRegistry.addRemotePublicKey(key)
+      return { result: true, hash: result.txHash }
     } else {
-      return { result: false, errorCode: 'GENERIC_ERROR', rawError: result }
+      return { result: false }
     }
+  } catch (err: any) {
+    console.error(`Something went wrong with key publishing`, err)
+    return { result: false }
   }
 }

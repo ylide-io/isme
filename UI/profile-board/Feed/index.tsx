@@ -83,7 +83,7 @@ const defaultPosts: PostData[] = [
 const uniqueFeedId = '0000000000000000000000000000000000000000000000000000000000000117' as Uint256 // ISME const
 
 export function useFeedLoader(userAddress: string) {
-  const feedId = constructFeedId(userAddress, true, uniqueFeedId)
+  const feedId = constructFeedId(userAddress, true, false, uniqueFeedId)
   const { walletAccount, decodeMessage } = useYlide()
 
   return useCallback(
