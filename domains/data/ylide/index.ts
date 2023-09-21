@@ -138,6 +138,10 @@ const useYlideService = () => {
           genericFactory.wallet,
           {
             dev: false, //document.location.hostname === 'localhost',
+            faucet: {
+              registrar: 4,
+              apiKey: { type: 'client', key: 'cl75d3ca9c025bee7e' },
+            },
             onSwitchAccountRequest: () => {},
             onNetworkSwitchRequest: async (
               _reason: string,
