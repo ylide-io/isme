@@ -20,7 +20,7 @@ const ChooseEvmNetwork: FC = () => {
   const [balances, setBalances] = useState<BlockchainBalances>({})
   useEffect(() => {
     ;(async () => {
-      if (chooseEvmNetworkDialog.visible && account) {
+      if (account) {
         setBalances(await getBalancesOf(account))
         setLoading(false)
       } else {
@@ -28,7 +28,7 @@ const ChooseEvmNetwork: FC = () => {
         setLoading(true)
       }
     })()
-  }, [account, chooseEvmNetworkDialog.visible, getBalancesOf])
+  }, [account, getBalancesOf])
 
   return (
     <Dialog
