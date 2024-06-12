@@ -83,7 +83,7 @@ const defaultPosts: PostData[] = [
 const uniqueFeedId = '0000000000000000000000000000000000000000000000000000000000000117' as Uint256 // ISME const
 
 export function useFeedLoader(userAddress: string) {
-  const feedId = constructFeedId(userAddress, true, uniqueFeedId)
+  const feedId = constructFeedId(userAddress, true, false, uniqueFeedId)
   const { walletAccount, decodeMessage } = useYlide()
 
   return useCallback(
@@ -245,7 +245,7 @@ const NewPostForm: FC<{ onPost: () => void }> = ({ onPost }) => {
       sendingAgentVersion: { major: 1, minor: 0, patch: 0 },
       subject: cleanTitle,
       content: YMF.fromPlainText(cleanContent),
-      attachments: [], // TODO?
+      attachments: [],
       extraBytes: new Uint8Array(0),
       extraJson: {},
     })
@@ -267,7 +267,7 @@ const NewPostForm: FC<{ onPost: () => void }> = ({ onPost }) => {
       .finally(() => {
         setSending(false)
       })
-  }, [cleanTitle, cleanContent, broadcastMessage, onPost])
+  }, [hasData, cleanTitle, cleanContent, broadcastMessage, onPost])
 
   return (
     <Form>

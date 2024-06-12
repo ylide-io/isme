@@ -1,11 +1,11 @@
 import type {
   AbstractWalletController,
-  IGenericAccount,
+  WalletAccount,
   WalletControllerFactory,
   Ylide,
-  YlideKeyStore,
+  YlideKeysRegistry,
 } from '@ylide/sdk'
-import { WalletEvent } from '@ylide/sdk'
+import { PrivateKeyAvailabilityState, WalletEvent, YlideKeyVersion } from '@ylide/sdk'
 import EventEmitter from 'eventemitter3'
 
 export class Wallet extends EventEmitter {
@@ -15,12 +15,12 @@ export class Wallet extends EventEmitter {
 
   private _isAvailable = false
 
-  currentWalletAccount: IGenericAccount | null = null
+  currentWalletAccount: WalletAccount | null = null
   currentBlockchain = 'unknown'
 
   constructor(
     private readonly ylide: Ylide,
-    private readonly keystore: YlideKeyStore,
+    private readonly keysRegistry: YlideKeysRegistry,
     factory: WalletControllerFactory,
     controller: AbstractWalletController
   ) {
@@ -56,12 +56,12 @@ export class Wallet extends EventEmitter {
     this.controller.off(WalletEvent.BLOCKCHAIN_CHANGED, this.handleBlockchainChanged)
   }
 
-  handleAccountChanged = (newAccount: IGenericAccount) => {
+  handleAccountChanged = (newAccount: WalletAccount) => {
     this.currentWalletAccount = newAccount
     this.emit('accountUpdate', this.currentWalletAccount)
   }
 
-  handleAccountLogin = (newAccount: IGenericAccount) => {
+  handleAccountLogin = (newAccount: WalletAccount) => {
     this.currentWalletAccount = newAccount
     this.emit('accountUpdate', this.currentWalletAccount)
   }
@@ -83,36 +83,48 @@ export class Wallet extends EventEmitter {
     return this._isAvailable
   }
 
-  async constructLocalKeyV3(account: IGenericAccount) {
-    return await this.keystore.constructKeypairV3(
-      'New account connection',
+  async constructLocalKeyV3(account: WalletAccount) {
+    return await this.keysRegistry.instantiateNewPrivateKey(
       this.factory.blockchainGroup,
-      this.factory.wallet,
-      account.address
-    )
-  }
-
-  async constructLocalKeyV2(account: IGenericAccount, password: string) {
-    return await this.keystore.constructKeypairV2(
-      'New account connection',
-      this.factory.blockchainGroup,
-      this.factory.wallet,
       account.address,
-      password
+      YlideKeyVersion.KEY_V3,
+      PrivateKeyAvailabilityState.AVAILABLE,
+      {
+        onPrivateKeyRequest: async (address, magicString) =>
+          await this.controller.signMagicString(account, magicString),
+      }
     )
   }
 
-  async constructLocalKeyV1(account: IGenericAccount, password: string) {
-    return await this.keystore.constructKeypairV1(
-      'New account connection',
+  async constructLocalKeyV2(account: WalletAccount, password: string) {
+    return await this.keysRegistry.instantiateNewPrivateKey(
       this.factory.blockchainGroup,
-      this.factory.wallet,
       account.address,
-      password
+      YlideKeyVersion.KEY_V2,
+      PrivateKeyAvailabilityState.AVAILABLE,
+      {
+        onPrivateKeyRequest: async (address, magicString) =>
+          await this.controller.signMagicString(account, magicString),
+        onYlidePasswordRequest: async (address) => password,
+      }
     )
   }
 
-  async readRemoteKeys(account: IGenericAccount) {
+  async constructLocalKeyV1(account: WalletAccount, password: string) {
+    return await this.keysRegistry.instantiateNewPrivateKey(
+      this.factory.blockchainGroup,
+      account.address,
+      YlideKeyVersion.INSECURE_KEY_V1,
+      PrivateKeyAvailabilityState.AVAILABLE,
+      {
+        onPrivateKeyRequest: async (address, magicString) =>
+          await this.controller.signMagicString(account, magicString),
+        onYlidePasswordRequest: async (address) => password,
+      }
+    )
+  }
+
+  async readRemoteKeys(account: WalletAccount) {
     const result = await this.ylide.core.getAddressKeys(account.address)
 
     return {
@@ -121,11 +133,11 @@ export class Wallet extends EventEmitter {
     }
   }
 
-  async getCurrentAccount(): Promise<IGenericAccount | null> {
+  async getCurrentAccount(): Promise<WalletAccount | null> {
     return this.controller.getAuthenticatedAccount()
   }
 
-  async disconnectAccount(account: IGenericAccount) {
+  async disconnectAccount(account: WalletAccount) {
     await this.controller.disconnectAccount(account)
   }
 

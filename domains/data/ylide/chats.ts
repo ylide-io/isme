@@ -121,7 +121,7 @@ export enum ChatState {
   LOADING,
 }
 
-export function useChat({ recipientName }: { recipientName?: string }) {
+export function useChat({ recipientName }: { recipientName: string }) {
   const { client } = useNFT3()
   const { account } = useUser()
   const { walletAccount, decodeMessage, forceAuth, isLoading, authState } = useYlide()
@@ -144,19 +144,21 @@ export function useChat({ recipientName }: { recipientName?: string }) {
       limit: 1000,
     })
 
-    const entries = enteriesRaw.map((entry) => ({
-      ...entry,
-      msg: {
-        ...entry.msg,
-        key: new Uint8Array(entry.msg.key),
-      },
-    }))
+    const entries = enteriesRaw
+      .map((entry) => ({
+        ...entry,
+        msg: {
+          ...entry.msg,
+          key: new Uint8Array(entry.msg.key),
+        },
+      }))
+      .reverse()
 
     return await Promise.all(
       entries
         .filter((e) => e.type === 'message')
         .map(async (entry) => {
-          const decoded = await decodeMessage(entry.id, entry.msg, walletAccount)
+          const decoded = await decodeMessage(entry.id, entry.msg, walletAccount!)
 
           return {
             id: entry.id,
